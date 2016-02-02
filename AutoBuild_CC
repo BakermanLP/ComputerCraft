@@ -1,0 +1,265 @@
+--Turtle AutoBuilder v0.2
+os.loadAPI("turtleAPI")
+
+--Functions
+function debuglog(str)
+    local outfile = io.open("debug.log","a")
+    outfile:write(os.day())
+    outfile:write(" ")
+    outfile:write(os.time())
+    outfile:write(" : ")
+    outfile:write(str.."\n")
+    outfile:close()
+end
+
+function explode(div,str)
+    if (div=='') then return false end
+    local pos,arr = 0,{}
+    for st,sp in function() return string.find(str,div,pos,true) end do
+        table.insert(arr,string.sub(str,pos,st-1))
+        pos = sp + 1
+    end
+    table.insert(arr,string.sub(str,pos))
+    return arr
+end
+
+function table.count(table, element)
+  local counter = 0
+  for _, value in pairs(table) do
+  for _, value2 in pairs(value) do
+    if value2 == element then
+      counter = counter + 1
+    end
+  end
+  end
+  return counter
+end
+
+function getCost(x,y,z,turtlex,turtley,turtlez)
+    local moveCost = 15;
+    local turnCost = 2.5;
+
+    xabs = math.abs(x - turtlex)
+    zabs = math.abs(z - turtlez)
+
+    cost = (xabs + zabs) * moveCost
+
+    if xabs > 0 then
+    if zabs > 0 then
+        cost = cost + turnCost
+    end
+    end
+
+--    debuglog("getCost ("..tostring(turtlex)..","..tostring(turtley)..","..tostring(turtlez)..") -> ("..tostring(x)..","..tostring(y)..","..tostring(z)..") Cost:"..tostring(cost))
+
+    return cost
+end
+
+function splitbuild(splitnum = 0,maxx,maxz)
+    if splitnum == 0 then
+        local minx = 1
+        local minz = 1
+    else
+        splitmod = splitnum % 2
+        splitround = math.floor(splitnum / 2)
+
+        minx = maxx / 2 * splitmod + 1
+        minz = ( maxz / 2 * splitround ) + 1
+
+        maxx = minx + maxx / 2 - 1
+        maxz = minz + maxz / 2 - 1
+    end
+
+    return minx, maxx, minz, maxz
+end
+
+local function refillMaterial()
+    debuglog("Refill Material")
+    turtle.select(2) -- select material ender chest
+
+    while not turtle.placeUp() do
+        turtle.digUp()
+    end
+
+    for i=3,16 do
+        turtle.select(i)
+        turtle.suckUp(turtle.getItemSpace())
+        os.sleep(0.2)
+    end
+
+    turtle.select(2) -- select material ender chest
+    turtle.digUp()
+end
+
+local function placeBlock()
+    if (turtle.getItemCount() <= 1) then
+        slot = 3
+        repeat
+            if slot == 16 then
+                refillMaterial()
+                slot = 2
+            end
+            slot = slot + 1
+            turtle.select(slot)
+            print("Slot Nummer ="..slot)
+        until turtle.getItemCount() > 1
+    end
+
+    while not turtle.placeDown() do
+        turtle.digDown()
+    end
+end    
+
+local function checkFuel(walking)
+    walking = walking + 10
+    fuel = turtle.getFuelLevel()
+
+    if fuel < walking then -- refill
+        debuglog("Refuel")
+        slot = turtle.getSelectedSlot()
+        turtle.select(1) -- select fuel ender chest
+
+        while not turtle.placeUp() do
+            turtle.digUp()
+        end
+        turtle.suckUp(1)
+        turtle.refuel()
+        fuelItem = turtle.getFuelLevel() - fuel
+
+        print("fuelItem = "..tostring(fuelItem))
+        toRefuel = turtle.getFuelLimit() - turtle.getFuelLevel()
+        print("toRefuel = "..tostring(toRefuel))
+        toRefuelItems = math.floor( toRefuel / fuelItem )
+        print("toRefuelItems = "..tostring(toRefuelItems))
+    
+        while toRefuel > fuelItem do
+            if toRefuelItems > 64 then
+                toRefuelItems = 64
+            end
+            turtle.suckUp(toRefuelItems)
+            turtle.refuel(toRefuelItems)
+
+            toRefuel = turtle.getFuelLimit() - turtle.getFuelLevel()
+            print("toRefuel = "..tostring(toRefuel))
+            toRefuelItems = math.floor( toRefuel / fuelItem )
+            print("toRefuelItems = "..tostring(toRefuelItems))
+            os.sleep(1)
+        end
+
+        turtle.digUp()
+    end
+end
+
+--Declarations
+local x = 0
+local y = 0
+local z = 0
+local turtlex = 0
+local turtley = 0
+local turtlez = 0
+local maxx = 0
+local maxy = 0
+local maxz = 0
+local tbllines = {}
+local i = 0
+local c = 0
+
+-- Start reading file
+
+local build = io.open("industrialbuilding.txt", "r")
+
+if build then
+  print("Turtle init / restore")
+  turtle.init()
+  io.input(build)
+  line = io.read() -- #binvox ASCII data
+--  print( line )
+  line = io.read() -- dim 5 5 5
+--  print(line)
+  local maxsx, maxsy,maxsz = line:match("dim (%d+) (%d+) (%d+)")
+  local maxx,maxy,maxz = tonumber(maxsx),tonumber(maxsy),tonumber(maxsz)
+
+  local minx, maxx, minz, maxz = splitbuild(arg[1],maxx,maxz)
+
+  tmp = io.read() -- translate -7.595 -24.27 -68.41
+  tmp = io.read() -- scale 135.94
+  tmp = io.read() -- data
+
+  local tbllines = {}
+
+  print("x="..tostring(minx).." - "..tostring(maxx))
+  print("z="..tostring(minz).." - "..tostring(maxz))
+
+  exit()
+
+  -- load save state for turtle if exists
+  turtlex,turtley,turtlez = turtle.getCoords()
+
+  -- seek file to y coord of turtle
+  print("turtley="..tostring(turtley))
+  c=0
+  while c < turtley do
+    print("newlayer c"..tostring(c))
+    for d=1,maxz do
+        line=io.read()
+    end
+    c = c + 1
+  end
+
+  -- debug position in file and turtle pos
+  print("turtle pos ("..tostring(turtlex)..","..tostring(turtley)..","..tostring(turtlez)..")")
+  print("seeked to layer "..tostring(c))
+
+  for y=c, maxy-1 do
+
+    for b=1,maxz do
+      line=io.read()
+      tbllines[b]=explode(" ",line)
+    end
+
+    local findings = table.count(tbllines,"1")
+
+    print("Ebene "..tostring(y).." Bloecke "..findings)
+    debuglog("Ebene "..tostring(y).." Bloecke "..findings)
+
+    while table.count(tbllines,"1") > 0 do
+        local maxway=getCost(0,0,0,maxx,maxy,maxz)
+       
+        turtlex, turtley, turtlez = turtle.getCoords()
+
+        for x=1,maxx do
+            for z=1,maxz do
+                if tbllines[z][x] == "1" then
+                    tempway=getCost(x,y,z,turtlex,turtley,turtlez)
+
+                    if tempway<maxway then
+                        maxway = tempway
+                        nextX = x
+                        nextY = y
+                        nextZ = z
+                    end
+                end
+            end
+        end
+
+        print("goto ("..tostring(turtlex)..","..tostring(turtley)..","..tostring(turtlez)..") -> ("..tostring(nextX)..","..tostring(nextY)..","..tostring(nextZ)..")")
+        debuglog("goto ("..tostring(turtlex)..","..tostring(turtley)..","..tostring(turtlez)..") -> ("..tostring(nextX)..","..tostring(nextY)..","..tostring(nextZ)..")")
+        turtle.goto(nextX,nextY,nextZ)
+        -- Place Block
+        placeBlock()
+        tbllines[nextZ][nextX] = "0"
+
+        os.sleep(0.1)
+    end
+  end
+  build:close()
+  turtle.goto(0,nextY,0)
+  turtle.goto(0,0,0)
+  turtle.turnTo("east")
+  turtle.clearState()
+
+else
+  error("file not found")
+end
+
+-- vim:syntax=lua
