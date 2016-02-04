@@ -1,121 +1,12 @@
---Turtle AutoBuilder v0.2
-os.loadAPI("turtleAPI")
+--Turtle AutoBuilder v0.3
 
 --Functions
-function debuglog(str)
-    local outfile = io.open("debug.log","a")
-    outfile:write(os.day())
-    outfile:write(" ")
-    outfile:write(os.time())
-    outfile:write(" : ")
-    outfile:write(str.."\n")
-    outfile:close()
-end
-
-function explode(div,str)
-    if (div=='') then return false end
-    local pos,arr = 0,{}
-    for st,sp in function() return string.find(str,div,pos,true) end do
-        table.insert(arr,string.sub(str,pos,st-1))
-        pos = sp + 1
-    end
-    table.insert(arr,string.sub(str,pos))
-    return arr
-end
-
-function table.count(table, element)
-  local counter = 0
-  for _, value in pairs(table) do
-  for _, value2 in pairs(value) do
-    if value2 == element then
-      counter = counter + 1
-    end
-  end
-  end
-  return counter
-end
-
-function getCost(x,y,z,turtlex,turtley,turtlez)
-    local moveCost = 15;
-    local turnCost = 2.5;
-
-    xabs = math.abs(x - turtlex)
-    zabs = math.abs(z - turtlez)
-
-    cost = (xabs + zabs) * moveCost
-
-    if xabs > 0 then
-    if zabs > 0 then
-        cost = cost + turnCost
-    end
-    end
-
---    debuglog("getCost ("..tostring(turtlex)..","..tostring(turtley)..","..tostring(turtlez)..") -> ("..tostring(x)..","..tostring(y)..","..tostring(z)..") Cost:"..tostring(cost))
-
-    return cost
-end
-
-function splitbuild(splitnum = 0,maxx,maxz)
-    if splitnum == 0 then
-        local minx = 1
-        local minz = 1
-    else
-        splitmod = splitnum % 2
-        splitround = math.floor(splitnum / 2)
-
-        minx = maxx / 2 * splitmod + 1
-        minz = ( maxz / 2 * splitround ) + 1
-
-        maxx = minx + maxx / 2 - 1
-        maxz = minz + maxz / 2 - 1
-    end
-
-    return minx, maxx, minz, maxz
-end
-
-local function refillMaterial()
-    debuglog("Refill Material")
-    turtle.select(2) -- select material ender chest
-
-    while not turtle.placeUp() do
-        turtle.digUp()
-    end
-
-    for i=3,16 do
-        turtle.select(i)
-        turtle.suckUp(turtle.getItemSpace())
-        os.sleep(0.2)
-    end
-
-    turtle.select(2) -- select material ender chest
-    turtle.digUp()
-end
-
-local function placeBlock()
-    if (turtle.getItemCount() <= 1) then
-        slot = 3
-        repeat
-            if slot == 16 then
-                refillMaterial()
-                slot = 2
-            end
-            slot = slot + 1
-            turtle.select(slot)
-            print("Slot Nummer ="..slot)
-        until turtle.getItemCount() > 1
-    end
-
-    while not turtle.placeDown() do
-        turtle.digDown()
-    end
-end    
 
 local function checkFuel(walking)
     walking = walking + 10
     fuel = turtle.getFuelLevel()
 
     if fuel < walking then -- refill
-        debuglog("Refuel")
         slot = turtle.getSelectedSlot()
         turtle.select(1) -- select fuel ender chest
 
@@ -150,36 +41,275 @@ local function checkFuel(walking)
     end
 end
 
+function saveState()
+        local outfile = fs.open("saveTurtleState.lua","w")
+        outfile.write("turtlex = "..turtlex.."\n")
+        outfile.write("turtley = "..turtley.."\n")
+        outfile.write("turtlez = "..turtlez.."\n")
+        outfile.write("curDir = "..curDir.."\n")
+        outfile.close()
+end
+
+local function loadState()
+        dofile("saveTurtleState.lua")
+end
+
+function init()
+    if fs.exists("saveTurtleState.lua") then
+        print("turtle load state")
+        loadState()
+    else
+        print("turtle init state")
+        turtlex=0
+        turtley=0
+        turtlez=0
+        curDir=1
+    end
+    saveState()
+end
+
+function changeDir(toDir)
+    local dir=toDir-curDir
+    curDir=toDir
+    if math.abs(dir)==3 then
+        if toDir==1 then turtle.turnRight() else turtle.turnLeft() end
+    else
+        for i=1, math.abs(dir) do
+            if dir>0 then turtle.turnRight() else turtle.turnLeft() end
+        end
+    end
+    saveState()
+end
+
+function movex(steps,remove)
+    if math.abs(steps)>0 then
+        checkFuel(math.abs(steps))
+        if steps>0 then changeDir(2) else changeDir(4) end
+        for i=1, math.abs(steps) do
+            if remove and turtle.inspect() then turtle.dig() end
+            turtle.forward()
+        end
+    end
+end
+
+function movey(steps,remove)
+    checkFuel(math.abs(steps))
+    for i=1, math.abs(steps) do
+        if steps>0 then
+            if remove and turtle.inspectUp() then turtle.digUp() end
+            turtle.up()
+        else
+            if remove and turtle.inspectDown() then turtle.digDown() end
+            turtle.down()
+        end
+    end
+end
+
+function movez(steps,remove)
+    if math.abs(steps)>0 then
+        checkFuel(math.abs(steps))
+        if steps>0 then changeDir(1) else changeDir(3) end
+        for i=1, math.abs(steps) do
+            if remove and turtle.inspect() then turtle.dig() end
+            turtle.forward()
+        end
+    end
+end
+
+function moveTo(x,y,z,remove)
+
+    local stepsx = x - turtlex
+    local stepsy = y - turtley
+    local stepsz = z - turtlez
+    if stepsy>0 then
+        movey(stepsy,remove)
+    turtley = y
+    saveState()
+        movex(stepsx,remove)
+    turtlex = x
+    saveState()
+        movez(stepsz,remove)
+    turtlez = z
+    saveState()
+    else
+        movex(stepsx,remove)
+    turtlex = x
+    saveState()
+        movez(stepsz,remove)
+    turtlez = z
+    saveState()
+        movey(stepsy,remove)
+    turtley = y
+    saveState()
+    end
+    turtlex = x
+    turtley = y
+    turtlez = z
+end
+
+function distance(ax, az, bx, bz)
+    return math.abs(ax-bx) + math.abs(az-bz)
+end
+
+
+function explode(div,str)
+    if (div=='') then return false end
+    local pos,arr = 0,{}
+    for st,sp in function() return string.find(str,div,pos,true) end do
+        table.insert(arr,string.sub(str,pos,st-1))
+        pos = sp + 1
+    end
+    table.insert(arr,string.sub(str,pos))
+    return arr
+end
+
+function table.count(table, element, minx, maxx, minz, maxz)
+  local counter = 0
+  local a
+  local b
+
+  for a=minx,maxx do
+      for b=minz,maxz do
+          if table[b][a] == element then
+                counter = counter + 1
+          end
+    end
+  end
+
+  return counter
+end
+
+function parseCmdLine(args)
+    local retval = {"testing.txt",0}
+
+    for i = 1, #args do
+        retval[i]=args[i]
+    end
+
+    return retval[1], retval[2]
+end
+
+function getCost(x,y,z,turtlex,turtley,turtlez)
+    local moveCost = 15;
+    local turnCost = 2.5;
+
+    xabs = math.abs(x - turtlex)
+    zabs = math.abs(z - turtlez)
+
+    cost = (xabs + zabs) * moveCost
+
+    if xabs > 0 then
+    if zabs > 0 then
+        cost = cost + turnCost
+    end
+    end
+
+    return cost
+end
+
+function splitbuild(splitnum,maxx,maxz)
+    local minx = 1
+    local minz = 1
+
+    if tonumber(splitnum) > 0 then
+        splitnum = splitnum - 1
+        splitmod = splitnum % 2
+        splitround = math.floor(splitnum / 2)
+
+        minx = maxx / 2 * splitmod + 1
+        minz = ( maxz / 2 * splitround ) + 1
+
+        maxx = minx + maxx / 2 - 1
+        maxz = minz + maxz / 2 - 1
+    end
+
+    return minx, maxx, minz, maxz
+end
+
+local function refillMaterial()
+    turtle.select(2) -- select material ender chest
+
+    while not turtle.placeUp() do
+        turtle.digUp()
+    end
+
+    for i=3,16 do
+        turtle.select(i)
+        turtle.suckUp(turtle.getItemSpace())
+        os.sleep(0.2)
+    end
+
+    turtle.select(2) -- select material ender chest
+    turtle.digUp()
+end
+
+local function placeBlock()
+    if (turtle.getItemCount() <= 1) then
+        slot = 3
+        repeat
+            if slot == 16 then
+                refillMaterial()
+                slot = 2
+            end
+            slot = slot + 1
+            turtle.select(slot)
+            print("Slot Nummer ="..slot)
+        until turtle.getItemCount() > 1
+    end
+
+    if not turtle.compareDown() then
+        -- checkMaterials()
+        turtle.digDown()
+        turtle.placeDown()
+    end
+end    
+
+
 --Declarations
 local x = 0
 local y = 0
 local z = 0
-local turtlex = 0
-local turtley = 0
-local turtlez = 0
+turtlex = 0
+turtley = 0
+turtlez = 0
+curDir = 1
 local maxx = 0
 local maxy = 0
 local maxz = 0
 local tbllines = {}
 local i = 0
 local c = 0
+local splitnum = 0
+local args = {...}
 
 -- Start reading file
 
-local build = io.open("industrialbuilding.txt", "r")
+filename,splitnum = parseCmdLine(args)
+
+local build = io.open(filename, "r")
 
 if build then
   print("Turtle init / restore")
-  turtle.init()
+  init()
+
+  print("Turtle Position:")
+  print("x,y,z "..tostring(turtlex)..", "..tostring(turtley)..", "..turtlez.." direction "..tostring(curDir))
+  os.sleep(5)
+
+  -- Hier Restore vorherige Sitzung
+  
   io.input(build)
   line = io.read() -- #binvox ASCII data
 --  print( line )
   line = io.read() -- dim 5 5 5
 --  print(line)
   local maxsx, maxsy,maxsz = line:match("dim (%d+) (%d+) (%d+)")
+  -- Maximum Building xyz
+  local maxbx,maxby,maxbz = tonumber(maxsx),tonumber(maxsy),tonumber(maxsz)
+  -- befor split maximum xyz build area
   local maxx,maxy,maxz = tonumber(maxsx),tonumber(maxsy),tonumber(maxsz)
 
-  local minx, maxx, minz, maxz = splitbuild(arg[1],maxx,maxz)
+  local minx, maxx, minz, maxz = splitbuild(splitnum,maxx,maxz)
 
   tmp = io.read() -- translate -7.595 -24.27 -68.41
   tmp = io.read() -- scale 135.94
@@ -187,16 +317,11 @@ if build then
 
   local tbllines = {}
 
-  print("x="..tostring(minx).." - "..tostring(maxx))
-  print("z="..tostring(minz).." - "..tostring(maxz))
-
-  exit()
-
-  -- load save state for turtle if exists
-  turtlex,turtley,turtlez = turtle.getCoords()
+  print("Baue Bereich von ("..splitnum..")")
+  print("x ("..tostring(minx).." - "..tostring(maxx).." / "..maxsx.." ) z ("..tostring(minz).." - "..tostring(maxz).." / "..maxsz..")")
 
   -- seek file to y coord of turtle
-  print("turtley="..tostring(turtley))
+--  print("turtley="..tostring(turtley))
   c=0
   while c < turtley do
     print("newlayer c"..tostring(c))
@@ -205,32 +330,27 @@ if build then
     end
     c = c + 1
   end
-
-  -- debug position in file and turtle pos
   print("turtle pos ("..tostring(turtlex)..","..tostring(turtley)..","..tostring(turtlez)..")")
   print("seeked to layer "..tostring(c))
 
   for y=c, maxy-1 do
 
-    for b=1,maxz do
+    for b=1,maxbz do
       line=io.read()
       tbllines[b]=explode(" ",line)
     end
 
-    local findings = table.count(tbllines,"1")
+    local findings = table.count(tbllines,"1",minx, maxx, minz, maxz)
 
     print("Ebene "..tostring(y).." Bloecke "..findings)
-    debuglog("Ebene "..tostring(y).." Bloecke "..findings)
 
-    while table.count(tbllines,"1") > 0 do
-        local maxway=getCost(0,0,0,maxx,maxy,maxz)
-       
-        turtlex, turtley, turtlez = turtle.getCoords()
+    while table.count(tbllines,"1",minx, maxx, minz, maxz) > 0 do
+        local maxway=maxx + maxy + maxz
 
-        for x=1,maxx do
-            for z=1,maxz do
+        for x=minx,maxx do
+            for z=minz,maxz do
                 if tbllines[z][x] == "1" then
-                    tempway=getCost(x,y,z,turtlex,turtley,turtlez)
+                    tempway=distance(x,z,turtlex,turtlez)
 
                     if tempway<maxway then
                         maxway = tempway
@@ -243,20 +363,20 @@ if build then
         end
 
         print("goto ("..tostring(turtlex)..","..tostring(turtley)..","..tostring(turtlez)..") -> ("..tostring(nextX)..","..tostring(nextY)..","..tostring(nextZ)..")")
-        debuglog("goto ("..tostring(turtlex)..","..tostring(turtley)..","..tostring(turtlez)..") -> ("..tostring(nextX)..","..tostring(nextY)..","..tostring(nextZ)..")")
-        turtle.goto(nextX,nextY,nextZ)
+        moveTo(nextX,nextY,nextZ)
         -- Place Block
         placeBlock()
+        print("tbllines["..tostring(nextZ).."]["..tostring(nextX).."]="..tostring(tbllines[nextZ][nextX]))
         tbllines[nextZ][nextX] = "0"
+        print("tbllines["..tostring(nextZ).."]["..tostring(nextX).."]="..tostring(tbllines[nextZ][nextX]))
 
         os.sleep(0.1)
     end
   end
   build:close()
-  turtle.goto(0,nextY,0)
-  turtle.goto(0,0,0)
-  turtle.turnTo("east")
-  turtle.clearState()
+
+  moveTo(0,0,0)
+  changeDir(1)
 
 else
   error("file not found")
